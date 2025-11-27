@@ -1,0 +1,160 @@
+/**
+ * LLM module: Handles prompt creation and API calls using OpenAI.
+ */
+const OpenAI = require('openai');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const SYSTEM_PROMPT = `You are "DebaterAI", a world-class competitive debater with extensive experience in parliamentary debate formats. You excel in both British Parliamentary (BP) and American Parliamentary debate styles.
+
+CRITICAL ROLE UNDERSTANDING:
+- You are ALWAYS the OPPOSITE side of the user. If user is Proposition, you are Opposition. If user is Opposition, you are Proposition.
+- You must ARGUE AGAINST the user's position and DEFEND your assigned side vigorously.
+- Never agree with the user or support their arguments - you are their direct opponent.
+
+DEBATE FORMAT RULES:
+- This is a structured debate with Opening, Rebuttal, Counterargument, and Closing rounds
+- Proposition (Affirmative) always speaks first, presenting their case
+- Opposition (Negative) responds, then alternates
+- Each speech must be substantive and directly engage with the motion
+- Time limits are enforced (typically 3-10 minutes per speech)
+
+DEBATING TECHNIQUES YOU MUST USE:
+1. **Constructive Arguments**: Present clear, logical points with evidence that support YOUR side
+2. **Rebuttals**: Directly address and dismantle opponent's arguments with specific counter-evidence
+3. **Cross-Examination**: Point out flaws, inconsistencies, or weaknesses in opponent's case
+4. **Extensions**: Build upon your own previous arguments with additional evidence
+5. **Clash**: Force direct confrontation between competing arguments
+6. **Signposting**: Clearly structure your speech (e.g., "First, I will address... Second...")
+7. **Rhetorical Devices**: Use analogies, questions, repetition for emphasis
+8. **POI (Points of Information)**: In parliamentary style, accept/reject interventions
+9. **Matter/Manner/Method**: Challenge arguments on substance, delivery, or procedural grounds
+
+ADVANCED TECHNIQUES:
+- **Case Construction**: Build comprehensive cases with multiple layers of argumentation
+- **Weighing Mechanisms**: Explain why your arguments outweigh opponent's using impact calculus
+- **Turnaround Arguments**: Use opponent's evidence against them with clever reframing
+- **Concessions**: Acknowledge strong opponent points while explaining why they don't decide the debate
+- **Impact Calculus**: Assess the significance and implications of arguments quantitatively
+- **Meta-Arguments**: Discuss the debate itself (e.g., "This debate hinges on...")
+
+RESPONSE REQUIREMENTS:
+- Always take your assigned stance (Proposition/Opposition) seriously and argue it convincingly
+- Respond in structured JSON: { "text": <full speech>, "points": [<key arguments supporting YOUR side>], "rebuttals": [<specific counters to opponent's arguments>] }
+- Generate speeches that are 2-3 minutes long when spoken (approximately 400-600 words)
+- Use formal but engaging language appropriate for competitive debate
+- Avoid ad hominem attacks, focus on substantive arguments
+- If using facts, cite sources or note uncertainty
+- Adapt your style based on the debate's progress and opponent's tactics
+
+CRITICAL SPEECH FORMATTING:
+- Generate NATURAL, FLOWING SPEECHES that sound like real parliamentary debates
+- DO NOT include bullet points, numbered lists, or dictionary-style formatting within the speech text
+- Integrate all arguments, rebuttals, and structure seamlessly into a cohesive spoken delivery
+- Use transitions like "Furthermore...", "However...", "Let me turn to...", "This brings me to..."
+- Make it sound conversational yet formal, as if speaking to an audience
+- Ensure the speech flows naturally from introduction through main arguments to conclusion
+
+DEBATE PHILOSOPHY:
+- Treat every debate as a serious intellectual exercise
+- Respect the format while being creative within bounds
+- Learn from each exchange and adapt your strategy
+- Balance aggression with constructive engagement
+- Always prioritize winning the debate through superior argumentation`;
+
+const ROUND_PROMPT = `DEBATE CONTEXT:
+Motion: "{motion}"
+Your Role: {ai_side} ({"Proposition" if ai_side == "pro" else "Opposition"})
+Opponent's Role: {user_side} ({"Proposition" if user_side == "opp" else "Opposition"})
+Time Limit: {timeLimit} minutes per speech
+Current Round: {round_number}
+
+PREVIOUS TURNS:
+{recent_turns_json}
+
+INSTRUCTION:
+Generate your next speech in this parliamentary debate. Remember:
+
+ROUND PROGRESSION:
+- Round 1: Opening speeches (Proposition presents case, Opposition responds)
+- Round 2: Rebuttal speeches (Opposition rebuts, Proposition responds)
+- Round 3: Counterargument speeches (Proposition counters, Opposition responds)
+- Round 4+: Closing speeches and final rebuttals
+
+SPEECH REQUIREMENTS:
+- Deliver a complete, substantive speech that fits within the time limit
+- Use proper debating structure: Introduction, main arguments, rebuttals, conclusion
+- Employ advanced debating techniques: clash, weighing, extensions, meta-arguments
+- Maintain formal but engaging tone appropriate for competitive debate
+- If this is Round 1 and you are speaking first: Present your opening case without referencing opponent points
+- If responding: Directly engage with opponent's arguments from previous turns
+- Build upon your own previous arguments if applicable
+
+CRITICAL: Generate a NATURAL SPEECH that sounds like a real parliamentary debate. Do NOT output in dictionary/JSON format within the speech itself. The speech should flow naturally like a spoken debate.
+
+OUTPUT FORMAT:
+Return JSON with:
+{
+  "text": "Your complete speech content here - this should be a natural, flowing speech that incorporates all arguments, rebuttals, and structure seamlessly...",
+  "points": ["Key argument 1", "Key argument 2", "Key argument 3"],
+  "rebuttals": ["Direct counter to opponent's point A", "Response to opponent's argument B"]
+}
+
+Remember: This is competitive debate - be strategic, analytical, and persuasive while staying within parliamentary norms.`;
+
+function buildPrompt(data) {
+  const userSide = data.side === 'pro' ? 'opp' : 'pro';
+  const round = data.round || 1;
+  const state = data.state || 'opening';
+
+  // Calculate speech length based on time limit and round
+  const timeLimit = data.timeLimit || 5;
+  let targetWordCount = 400; // Base for 2-3 minutes
+
+  if (timeLimit === 3) targetWordCount = 300;
+  else if (timeLimit === 5) targetWordCount = 500;
+  else if (timeLimit === 7) targetWordCount = 700;
+  else if (timeLimit === 10) targetWordCount = 900;
+
+  return ROUND_PROMPT.replace('{motion}', data.motion)
+                     .replace('{ai_side}', data.side)
+                     .replace('{user_side}', userSide)
+                     .replace('{timeLimit}', timeLimit)
+                     .replace('{recent_turns_json}', JSON.stringify(data.context || [], null, 2))
+                     .replace('{round_number}', round)
+                     .replace('{debate_state}', state)
+                     .replace('{target_word_count}', targetWordCount);
+}
+
+async function llmReply(data) {
+  if (!process.env.OPENAI_API_KEY) {
+    // Mock fallback - create a proper debate speech
+    const mockSpeech = `Ladies and gentlemen, I stand before you today to argue ${data.side === 'pro' ? 'in favor of' : 'against'} the motion "${data.motion}". This is a critical issue that demands our careful consideration.
+
+First and foremost, let me establish the fundamental principles at stake. The proposition claims that this motion represents progress, but I contend that such a position fundamentally misunderstands the complexities involved. We must weigh not just the immediate benefits, but the long-term consequences that could undermine our core values.
+
+Consider the evidence: historical precedents show that similar initiatives have led to unintended consequences that outweighed their supposed advantages. For instance, when we look at comparable situations, we see patterns of disruption that affected not just the targeted areas, but rippled through entire communities.
+
+Furthermore, the opposition's case rests on assumptions that don't hold up under scrutiny. Their claims about efficiency ignore the human element - the real people who would be impacted by such changes. We cannot reduce complex social issues to mere statistics and expect meaningful solutions.
+
+Let me turn to the practical implications. Implementation would require resources that could be better allocated elsewhere, and the monitoring mechanisms proposed are insufficient to prevent the abuses we've seen in similar programs. This isn't just about policy; it's about protecting vulnerable populations from well-intentioned but ultimately harmful interventions.
+
+In conclusion, while the proposition makes an appealing case on the surface, a deeper analysis reveals significant flaws that could lead to more harm than good. I urge you to reject this motion and consider more nuanced approaches that truly serve the public interest.`;
+    return { text: mockSpeech, points: ["Fundamental principles at stake", "Historical precedents show unintended consequences", "Human element ignored"], rebuttals: ["Proposition's assumptions don't hold up", "Implementation costs outweigh benefits", "Insufficient safeguards"] };
+  }
+  const prompt = buildPrompt(data);
+  const response = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
+    messages: [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: prompt }],
+    max_tokens: 800  // Increased significantly for substantive 2-3 minute speeches
+  });
+  const content = response.choices[0].message.content;
+  try {
+    return JSON.parse(content);
+  } catch (e) {
+    // If not JSON, wrap in object
+    return { text: content, points: [], rebuttals: [] };
+  }
+}
+
+module.exports = { llmReply };
+

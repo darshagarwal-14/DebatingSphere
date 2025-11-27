@@ -1,0 +1,36 @@
+{
+  "name": "ai-debate-partner",
+  "version": "1.0.0",
+  "description": "AI Debate Partner Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:3001 && electron .\"",
+    "backend": "cd backend && npm start",
+    "frontend": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "dist": "npm run build && electron-builder",
+    "test": "cd backend && npm test && cd ../frontend && npm test"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0",
+    "electron": "^22.0.0",
+    "electron-builder": "^23.6.0",
+    "wait-on": "^7.0.1"
+  },
+  "build": {
+    "appId": "com.aidebatepartner.app",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "frontend/build/**/*",
+      "backend/**/*"
+    ]
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "cheerio": "^1.1.2",
+    "dotenv": "^17.2.3"
+  }
+}
