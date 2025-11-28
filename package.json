@@ -5,11 +5,11 @@
   "main": "main.js",
   "scripts": {
     "dev": "concurrently \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:3001 && electron .\"",
-    "backend": "cd backend ; npm start",
-    "frontend": "cd frontend ; npm start",
-    "build": "cd frontend ; npm run build",
-    "dist": "npm run build ; electron-builder",
-    "test": "cd backend ; npm test ; cd ../frontend ; npm test"
+    "backend": "cd backend && npm start",
+    "frontend": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "dist": "npm run build && electron-builder",
+    "test": "cd backend && npm test && cd ../frontend && npm test"
   },
   "devDependencies": {
     "concurrently": "^7.6.0",
