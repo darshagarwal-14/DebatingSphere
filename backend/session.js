@@ -9,8 +9,13 @@ db.serialize(() => {
 });
 
 class SessionManager {
-  constructor() {
-    this.reset();
+  constructor(motion, side, timeLimit, skillLevel) {
+    this.reset({
+      motion,
+      side,
+      timeLimit,
+      skillLevel
+    });
   }
 
   reset(meta = {}) {
@@ -25,6 +30,7 @@ class SessionManager {
       ...meta
     };
     db.run('DELETE FROM turns');
+    //only take values from user input, not constant ones.
   }
 
   setMeta(partialMeta) {
