@@ -1,4 +1,4 @@
-# AI Debate Partner
+# Debating Sphere By Darsh Agarwal
 
 ## How to Use the App
 
